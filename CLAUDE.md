@@ -1112,6 +1112,53 @@ throttled`例はコンピュートシェーダ1本(`vector_add`)のみで、実�
 
 ## HANDOFF(直近の作業ログ、上が最新)
 
+- **2026-08-11 「データを紛失しない設計思想」を`RS-SmartTCP`から
+  `dream-os-wire`へ移植(ユーザー指示「RS-SmartTCPの4層4重の通信と
+  ACID互換…その設計思想は、dream-osにも活かして」への対応)**:
+  1. **背景**: 同日、`RS-SmartTCP`側で「4層4重の通信とACID互換、
+     オンライン証券などのネット上のDATAを紛失しない設計思想」への
+     対応として、`redundant_transmission`(最大4経路への並行送信、
+     最初の成功を採用)+`transaction_log`(CRC32チェックサム+fsyncに
+     よるWAL、Atomicity/Consistency/Durability)を新規実装した
+     (`RS-SmartTCP/CLAUDE.md`同日HANDOFF参照)。dream-os側は既に
+     `dream-os-wire::WorkerChannel`(`open-web-server-wire::
+     SecureChannel`によるAEAD暗号化+リプレイ対策)を持っていたが、
+     **送信が全経路失敗した場合にデータが失われる**という弱点が
+     残っていた——今回はこれを埋める形でRS-SmartTCPを再利用した。
+  2. **実装**: `dream-os-wire/Cargo.toml`に`rs-smarttcp`をpath依存
+     として追加。`WorkerChannel::submit_durable()`を新設——
+     (a)`submit()`と同じくJSONシリアライズ+AEAD暗号化を行い、
+     (b)結果フレームを`rs_smarttcp::transaction_log::TransactionLog`
+     へ`fsync`まで確実に書き込んでから、(c)呼び出し側が渡した最大
+     4本の送信クロージャを`rs_smarttcp::redundant_transmission::
+     send_redundant`で並行実行し最初の成功を採用する。
+  3. **正直な開示(重要、既存方針を踏襲)**: これは「本当に4つの
+     独立した物理伝送路(TCP/UDP/QUIC/MPTCP)を同時に使う」実配線
+     ではなく、呼び出し側が渡した送信クロージャをオーケストレーション
+     する層に留まる——実際の伝送路多重化は既存の`open-web-server-wire`
+     の`quic_channel`/`udp_channel`/`mptcp_channel`(前述の通り
+     引き続き未配線)が担う想定。また再送処理自体(WALを定期的に
+     読んで未送信分を再試行するバックグラウンドループ)も呼び出し側の
+     責務として実装していない。
+  4. **検証(型チェックのみで完了と報告しない方針を徹底)**:
+     `cargo build -p dream-os-wire --release`成功、`cargo test -p
+     dream-os-wire --release`**新規2件全green**(既存の
+     `aruaru_db_integration`1件・`secure_channel_integration`3件も
+     regression無し、実aruaru-db接続を伴う既存テストも引き続き成功)。
+     新規テストで、(a) 1本目が失敗しても2本目で成功しWALに1件記録が
+     残ること、(b) 全経路が失敗してもWALの記録自体は失われず
+     `Err`として正直に呼び出し元へ伝わること、の両方を実際のファイル
+     I/Oで確認。`cargo build --workspace --release`でワークスペース
+     全体もregression無し。
+  - 次にすべきこと: (1) `submit_durable`を実際にWorld Laboratory
+    コーディネータ本体(未実装)から呼ぶ配線、(2) WALを定期的に
+    読んで未送信分を再送するバックグラウンドタスクの実装(現状は
+    「WALに残っていることの確認」までで、自動再送ループは無い)、
+    (3) 本当の意味での4重伝送路(`open-web-server-wire`の
+    `quic_channel`/`udp_channel`/`mptcp_channel`)配線は引き続き未着手、
+    (4) open-directxの完成度向上が優先方針のため、本格拡張は引き続き
+    小さく育てる。
+
 - **2026-08-08(続き2) `dream-os-raid-bridge`にrunnableデモを追加(使いやすさ
   改善)、`dream-os-kernel/src/lib.rs`のTODO調査(コード変更なし、正直な
   開示)。rs-sync横断セッション(dream-os/open-directxを対象範囲とした

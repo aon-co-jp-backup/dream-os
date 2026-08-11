@@ -50,6 +50,25 @@
 //!   ledger`をコーディネータ側の永続化層としてそのままpath依存で
 //!   再利用する設計方針だけをworld-lab/docs/world-laboratory-design.mdへ追記した
 //!   (コードの実配線は次回以降)。
+//!
+//! ## 2026-08-11追記: 「データを紛失しない設計思想」を`RS-SmartTCP`から
+//! 再利用(`submit_durable`)
+//!
+//! ユーザー指示「(RS-SmartTCPの)4層4重の通信とACID互換…設計思想は、
+//! dream-osにも活かして」への対応。`RS-SmartTCP::transaction_log`
+//! (CRC32チェックサム+fsyncによるWAL)・`RS-SmartTCP::
+//! redundant_transmission`(最大4経路への並行送信、最初の成功を採用)を
+//! path依存で再利用し、`WorkerChannel::submit_durable`として配線した
+//! (`aruaru-llm`/`open-cuda`連携と同じ「既存実装をそのまま再利用し
+//! 複製しない」既存方針を踏襲)。
+//!
+//! **正直な開示(重要)**: これは「本当に4つの独立した物理伝送路
+//! (TCP/UDP/QUIC/MPTCP)を同時に使う」実配線ではなく、**呼び出し側が
+//! 渡した最大4本の送信クロージャ(例: 複数の`SecureChannel`宛先や
+//! リトライ戦略)をオーケストレーションする層**——実際の伝送路多重化は
+//! `open-web-server-wire`の`quic_channel`/`udp_channel`/`mptcp_channel`
+//! (前述の通りまだ未配線)が担う想定。今回追加したのは「WALへ確実に
+//! 書いてから複数経路で送る」という一段回上の合成パターンの実証。
 
 pub mod aruaru_persistence;
 
@@ -58,6 +77,7 @@ pub use aruaru_persistence::AruaruDbStore;
 use anyhow::{Context, Result};
 use open_web_server_wire::replay_guard::SecureChannel;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 /// ワーカーがコーディネータへ送る計算結果の envelope。
 ///
@@ -91,6 +111,38 @@ impl WorkerChannel {
         let json = serde_json::to_vec(envelope).context("failed to serialize WorkResultEnvelope")?;
         self.inner.encrypt(&json).context("failed to encrypt work result")
     }
+
+    /// `submit`に「データを紛失しない」層を1つ足したもの:
+    /// (1) まず暗号化済みフレームをローカルWAL(`RS-SmartTCP::
+    /// transaction_log::TransactionLog`)へ`fsync`まで確実に書き込み、
+    /// (2) その上で、渡された最大4本の送信クロージャ
+    /// (`RS-SmartTCP::redundant_transmission::send_redundant`)を並行実行
+    /// して最初に成功した経路の結果を返す。
+    ///
+    /// 全経路が失敗しても、WALには既に書き込み済みのため、呼び出し側は
+    /// 後でWALを読み返して再送できる(`wal.read_all_valid_records()`)。
+    /// **正直な開示**: 再送処理自体(WALを定期的に読んで未送信分を
+    /// 再試行するループ)は本関数に含まれない——それは呼び出し側の
+    /// バックグラウンドタスクの責務。
+    pub fn submit_durable<T, E, F>(
+        &mut self,
+        envelope: &WorkResultEnvelope,
+        wal_path: &Path,
+        paths: Vec<F>,
+    ) -> Result<rs_smarttcp::redundant_transmission::RedundantSendOutcome<T>>
+    where
+        T: Send + 'static,
+        E: Send + std::fmt::Display + 'static,
+        F: FnOnce() -> std::result::Result<T, E> + Send + 'static,
+    {
+        let frame = self.submit(envelope)?;
+
+        let wal = rs_smarttcp::transaction_log::TransactionLog::open(wal_path)
+            .map_err(|e| anyhow::anyhow!("failed to open durability WAL: {e}"))?;
+        wal.append(&frame).map_err(|e| anyhow::anyhow!("failed to durably record work result before sending: {e}"))?;
+
+        rs_smarttcp::redundant_transmission::send_redundant(paths).map_err(|e| anyhow::anyhow!("all redundant send paths failed (result is safely recorded in the WAL for retry): {e}"))
+    }
 }
 
 /// コーディネータ側の受信チャネル。改ざん検知・リプレイ拒否を経た上で
@@ -107,5 +159,68 @@ impl CoordinatorChannel {
     pub fn receive(&mut self, frame: &[u8]) -> Result<WorkResultEnvelope> {
         let json = self.inner.decrypt(frame).context("failed to decrypt/verify work result frame")?;
         serde_json::from_slice(&json).context("failed to deserialize WorkResultEnvelope")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_wal_path(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("dream-os-wire-wal-test-{tag}-{}.log", std::process::id()))
+    }
+
+    #[test]
+    fn submit_durable_records_to_wal_and_succeeds_via_first_working_path() {
+        let key = [7u8; 32];
+        let mut worker = WorkerChannel::new(&key);
+        let envelope = WorkResultEnvelope {
+            work_unit_id: "wu-1".to_string(),
+            worker_id: "worker-1".to_string(),
+            result_json: serde_json::json!({"hashes": ["abc", "def"]}),
+        };
+        let wal_path = temp_wal_path("basic");
+        let _ = std::fs::remove_file(&wal_path);
+
+        let paths: Vec<Box<dyn FnOnce() -> std::result::Result<&'static str, String> + Send>> = vec![
+            Box::new(|| Err("primary link down".to_string())),
+            Box::new(|| Ok("delivered via backup link")),
+        ];
+
+        let outcome = worker.submit_durable(&envelope, &wal_path, paths).expect("at least one redundant path must succeed");
+        assert_eq!(outcome.value, "delivered via backup link");
+
+        // WALには送信結果に関わらず、送信を試みたフレームが確実に残っている。
+        let wal = rs_smarttcp::transaction_log::TransactionLog::open(&wal_path).unwrap();
+        let records = wal.read_all_valid_records().unwrap();
+        assert_eq!(records.len(), 1, "the encrypted frame must be durably recorded before any send attempt");
+
+        let _ = std::fs::remove_file(&wal_path);
+    }
+
+    #[test]
+    fn submit_durable_leaves_the_wal_record_intact_even_if_every_path_fails() {
+        let key = [9u8; 32];
+        let mut worker = WorkerChannel::new(&key);
+        let envelope = WorkResultEnvelope {
+            work_unit_id: "wu-2".to_string(),
+            worker_id: "worker-2".to_string(),
+            result_json: serde_json::json!({"hashes": []}),
+        };
+        let wal_path = temp_wal_path("all-fail");
+        let _ = std::fs::remove_file(&wal_path);
+
+        let paths: Vec<Box<dyn FnOnce() -> std::result::Result<(), String> + Send>> =
+            vec![Box::new(|| Err("link1 down".to_string())), Box::new(|| Err("link2 down".to_string()))];
+
+        let result = worker.submit_durable(&envelope, &wal_path, paths);
+        assert!(result.is_err(), "all-paths-failed must surface as an error, not be silently swallowed");
+
+        // 送信は全滅したが、WALには再送に使える記録が残っている。
+        let wal = rs_smarttcp::transaction_log::TransactionLog::open(&wal_path).unwrap();
+        let records = wal.read_all_valid_records().unwrap();
+        assert_eq!(records.len(), 1, "a send failure must not lose the already-durable WAL record");
+
+        let _ = std::fs::remove_file(&wal_path);
     }
 }
