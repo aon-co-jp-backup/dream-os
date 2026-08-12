@@ -22,6 +22,7 @@ pub mod flash_attention_bridge;
 pub mod mining;
 pub mod power_profile;
 pub mod sbm;
+pub mod task_scheduler;
 
 pub use directx_bridge::dispatch_dxbc_vector_add;
 pub use flash_attention_bridge::dispatch_flash_attention;

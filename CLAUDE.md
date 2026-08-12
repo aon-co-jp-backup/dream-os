@@ -1112,6 +1112,85 @@ throttled`例はコンピュートシェーダ1本(`vector_add`)のみで、実�
 
 ## HANDOFF(直近の作業ログ、上が最新)
 
+- **2026-08-12 `sbm_ising`が解ける具体的な組合せ最適化問題を新規実装
+  (`crates/dream-os-kernel/src/task_scheduler.rs`)——`sbm.rs`自身の
+  モジュールdoc・過去複数のHANDOFFで繰り返し「次にすべきこと」として
+  残っていた「sbm_isingが解ける組合せ最適化問題の具体候補を特定して
+  から着手する」への対応。ユーザー指示「open-english・open-easy-web・
+  open-web-server・open-directx・open-cuda・aruaru-llm・RPoem・
+  open-raid-z・aruaru-db・PostgreSQL・複数WAN/複数LANのリポジトリの
+  設計思想をdream-osに活かす試作品を開発・TESTを繰り返して」への対応**:
+  1. **具体候補**: `RS-SmartTCP::path_optimizer`(複数WAN/LAN経路選択、
+     QUBO→Ising変換によるナップサック問題の求解、実機検証済み)・
+     `aruaru-llm::cache_optimizer`(モデルキャッシュ容量予算問題)と
+     同型の0/1ナップサック定式化を、本クレート固有の意思決定
+     ——「`power_profile::MiningPowerProfile`と同じ電力/ディスパッチ
+     予算の下で、複数の保留中GPU計算タスクのうちどれを今サイクルで
+     実行するかを選ぶ」——へ適用した(コードのコピーではなく独立実装、
+     各リポジトリが互いにpath依存しない既存方針を踏襲)。
+  2. **実装中に発見・修正した2つの数学的な罠(正直な開示、両方とも
+     コードレビュー段階の自己発見・実機検証で確定)**:
+     - **h項(局所磁場)の欠落**: `sbm.rs`のGPU/CPU実装は結合項
+       `J_ij*s_i*s_j`(MaxCut風)のみで、QUBO→Ising変換が本来必要とする
+       局所磁場`h_i*s_i`を渡す引数がそもそも存在しない。単純にhを
+       ゼロパディングするだけでは数学的に誤った問題を解いてしまう
+       ——**補助スピン(ancilla)による標準的な埋め込み**
+       (`h_i*s_i`を`h_i*s_i*s_a`という通常の結合項として埋め込み、
+       解読時は補助スピンとの相対符号`s_i^recovered = s_i*s_a`を取る)
+       で解決した(数式的な裏付けはモジュールdoc内に記載)。
+     - **符号規約の不一致(実機テストで発覚)**: `to_ising`は標準規約
+       `E = sum h_i s_i + sum J_ij s_i s_j`の最小化を前提に導出したが、
+       `sbm.rs`の`ising_energy`/力学系は符号が反転した`E' = -sum
+       J'_ij s_i s_j`を最小化する規約だった。符号を合わせずに実行した
+       結果、実機テストで「8回の試行すべてで常に全5タスクを選択する」
+       という体系的な誤り(ランダムノイズではなく毎回同じ誤答、
+       予算120/60コスト超過)として発覚——`J' = -J`(h含む)を渡すことで
+       修正し、修正後は8回の試行全てが予算制約を満たし、実際に
+       ナップサック問題として機能することを確認した(修正前は
+       `used_sbm_solution=false`で毎回貪欲フォールバックに頼っていた
+       ——CPU単体テストは偶然貪欲解が最適値と一致したため「green」の
+       まま実際の不具合を隠していた、という「テスト成功≠実装正解」の
+       実例としても記録する)。
+  3. **本クレート独自の制約**: `sbm.rs`のGPUカーネルは`NUM_SPINS=64`
+     固定(共有メモリサイズのコンパイル時固定)のため、補助スピン1個を
+     含め、タスク数+スラックビット数は63個までに制限される(超過時は
+     `Err`)。
+  4. **実機検証(NVIDIA GT730、型チェックのみで完了と報告しない方針を
+     徹底)**: `cargo test -p dream-os-kernel --release`
+     (CPU参照実装、`cpu_sbm_task_selection_respects_budget_and_
+     approaches_brute_force_optimum`——5候補のナップサック問題で予算
+     遵守+全探索最適値の75%以上を確認、`rejects_too_many_candidates_
+     for_the_fixed_num_spins_kernel`——64候補超過時のエラー確認)、
+     新規`tests/task_scheduler_real_vulkan.rs`
+     (`gpu_task_selection_respects_budget_and_approaches_brute_force_
+     optimum_on_real_hardware`)で実Vulkanデバイス経由の
+     `optimize_task_selection_gpu`を実行し、`keep=["render_pass",
+     "flash_attention_prefill"]`・`cost=50/60`・`value=15.00`(全探索
+     最適値18.00の83.3%、`used_sbm_solution=true`)を実機で確認。
+     `cargo build --workspace --release`/`cargo test --workspace
+     --release`/`cargo clippy --workspace --all-targets --release --
+     -D warnings`いずれもregression無し・警告0件。
+  5. **正直な開示・スコープ**: (a) 5候補程度の規模は全探索でも瞬時に
+     解けるため、SBMを使う実用上の必要性は薄い——「SBMが無ければ
+     解けない」という主張はしていない(既存の`RS-SmartTCP`/
+     `aruaru-llm`と同じ立ち位置、あくまで既存GPUディスパッチ経路への
+     実配線・実機検証が目的)。(b) 実際に`power_profile::
+     MiningPowerProfile`や実行中のタスクキューから呼び出す統合配線は
+     今回未実装(このモジュール自体の正しさの実証に留めた)。
+     (c) open-english/open-easy-web/open-web-server/aruaru-db/
+     PostgreSQL等、ユーザー指示に列挙された他リポジトリについては、
+     既存のHANDOFF(`dream-os-wire`のRS-SmartTCP/aruaru-db連携、
+     `directx_bridge`のopen-directx連携等)で既に実装済みの範囲を
+     踏襲し、今回新たなコード変更は加えていない——重複実装を避ける
+     既存方針の継続。
+  - 次にすべきこと: (1) `task_scheduler`を実際に`power_profile`や
+    将来のタスクキュー実装から呼ぶ統合配線、(2) より多くの候補・
+    複数予算次元(電力+VRAM等)がある場合にSBMを使う実用上の意味が
+    増す可能性の検証、(3) 他のsbm.rs利用箇所(mining等)にも同種の
+    符号規約チェックリストを適用し、同じ罠を踏んでいないか確認する
+    (今回発見した「h項欠落」「符号規約不一致」は他の将来のQUBO配線
+    でも再発しうる既知の罠として記録)。
+
 - **2026-08-11 「データを紛失しない設計思想」を`RS-SmartTCP`から
   `dream-os-wire`へ移植(ユーザー指示「RS-SmartTCPの4層4重の通信と
   ACID互換…その設計思想は、dream-osにも活かして」への対応)**:
