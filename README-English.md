@@ -63,16 +63,21 @@ maturity comparison, and a proposed realistic architecture direction.
 NVIDIA GT730) and Android (several phones).
 
 **Phase 2+ (deferred, pending future licensing/permission)**: macOS/
-iPhone, various Linux distributions, Sony PlayStation 5/6, Nintendo
-Switch 2, and **IBM mainframe (z/OS family) compatibility** (the
-instruction-set emulator Hercules is OSS, but running the actual OS
-requires an official IBM license). "AWS mainframe" turned out to be an
+iPhone/**iPad** (added 2026-08-17), various Linux/UNIX distributions,
+Sony PlayStation 5/6, Nintendo Switch 2/**3** (added 2026-08-17), and
+**IBM mainframe (z/OS family) compatibility** (the instruction-set
+emulator Hercules is OSS, but running the actual OS requires an
+official IBM license). "AWS mainframe" turned out to be an
 application-migration service (AWS Mainframe Modernization etc.), not
 an OS compatibility layer — see [`CLAUDE.md`](CLAUDE.md) for details.
 
-**Honest disclosure**: supporting macOS/iPhone, PS5/6, and Switch 2
-requires each platform holder's non-public SDK, NDA, and dev hardware,
-none of which this ecosystem currently has. Per the user's 2026-08-06
+**Honest disclosure**: supporting macOS/iPhone/iPad, PS5/6, and
+Switch 2/3 requires each platform holder's non-public SDK, NDA, and dev
+hardware, none of which this ecosystem currently has. **Switch 3 in
+particular has not been officially announced by Nintendo as of
+2026-08-17 — its inclusion here is only a placeholder for "if/when it
+is announced and released," not based on any real product information**
+(stated plainly to avoid overclaiming). Per the user's 2026-08-06
 decision, these are deferred on the premise of obtaining licensing later
 — work starts now with the platforms we actually have hardware for
 (see the "スコープの絞り込み" section of [`CLAUDE.md`](CLAUDE.md) for
