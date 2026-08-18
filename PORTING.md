@@ -115,3 +115,11 @@ Since there is no code yet, relocating this repository is as simple as
 copying the four files above. Once implementation begins, expand this
 section to match the "build steps" / "files to bring" sections used by
 `open-directx` / `RPoem`, etc.
+
+---
+
+Other languages: [English](PORTING-English.md) · [Deutsch](PORTING-German.md) ·
+[Italiano](PORTING-Italian.md) · [Français](PORTING-French.md) ·
+[Русский](PORTING-Russian.md) · [Українська](PORTING-Ukrainian.md) ·
+[עברית](PORTING-Hebrew.md) · [فارسی](PORTING-Persian.md) ·
+[العربية](PORTING-Arabic.md)

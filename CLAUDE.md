@@ -1701,3 +1701,11 @@ throttled`例はコンピュートシェーダ1本(`vector_add`)のみで、実�
     どう共有するか等)を再検討する、(2) VPS側の`/root/dream-os`は
     現状プレースホルダのみのため、実際にコードを書く段階になったら
     ローカルと同様にgit clone/git管理下へ置き換える。
+
+---
+
+Other languages: [English](CLAUDE-English.md) · [Deutsch](CLAUDE-German.md) ·
+[Italiano](CLAUDE-Italian.md) · [Français](CLAUDE-French.md) ·
+[Русский](CLAUDE-Russian.md) · [Українська](CLAUDE-Ukrainian.md) ·
+[עברית](CLAUDE-Hebrew.md) · [فارسی](CLAUDE-Persian.md) ·
+[العربية](CLAUDE-Arabic.md)

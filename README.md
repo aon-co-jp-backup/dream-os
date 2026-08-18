@@ -1,5 +1,11 @@
 # DreamOS (dream-os)
 
+*English*: [README-English.md](README-English.md) ·
+*Other languages*: [Deutsch](README-German.md) · [Italiano](README-Italian.md) ·
+[Français](README-French.md) · [Русский](README-Russian.md) ·
+[Українська](README-Ukrainian.md) · [עברית](README-Hebrew.md) ·
+[فارسی](README-Persian.md) · [العربية](README-Arabic.md)
+
 > 📌 **最近の更新(2026-08-08)**: `dream-os-raid-bridge`(open-raid-zの
 > RAID6/Z2実装ブリッジ)に、テストコードを読まなくても1コマンドで動作
 > 確認できるrunnableデモ`examples/raid6_bridge_benchmark.rs`を追加

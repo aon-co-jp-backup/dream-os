@@ -1,5 +1,11 @@
 # DreamOS (dream-os)
 
+*日本語*: [README.md](README.md) ·
+*Other languages*: [Deutsch](README-German.md) · [Italiano](README-Italian.md) ·
+[Français](README-French.md) · [Русский](README-Russian.md) ·
+[Українська](README-Ukrainian.md) · [עברית](README-Hebrew.md) ·
+[فارسی](README-Persian.md) · [العربية](README-Arabic.md)
+
 > 📌 **Recent update (2026-08-08)**: Added a runnable demo
 > (`examples/raid6_bridge_benchmark.rs`) to `dream-os-raid-bridge` (the
 > open-raid-z RAID6/Z2 bridge), so it can be exercised with a single
