@@ -49,6 +49,81 @@ impl AruaruDbStore {
         Ok(())
     }
 
+    /// ワークユニットの永続化テーブル(2026-08-20新設)を用意する。
+    ///
+    /// `world-lab-coordinator`のワークユニット状態(登録内容・claimed
+    /// フラグ)を、`aruaru_persistence`側の既存パターン(単純
+    /// `simple_query`+手動エスケープ、`aruaru-query`のSQLパーサーの
+    /// サブセット制約を踏まえたBase64エンコード)にそのまま従って
+    /// 永続化する。`claimed`は真偽値ではなく`'true'`/`'false'`の
+    /// テキストとして保持する——`aruaru-query`のUPDATE文パーサーは
+    /// `SET col = 'val'`の単純な文字列リテラルしか受け付けないため。
+    pub async fn ensure_work_units_schema(&self) -> Result<()> {
+        self.client
+            .simple_query("CREATE TABLE IF NOT EXISTS world_lab_work_units (id TEXT, payload_b64 TEXT, claimed TEXT)")
+            .await
+            .context("failed to create world_lab_work_units table")?;
+        Ok(())
+    }
+
+    /// 新規ワークユニットを1件挿入する(`payload`はカンマ等を含みうる
+    /// JSONのため、`persist_result`と同じ理由でBase64エンコードして
+    /// 格納する)。
+    pub async fn insert_work_unit(&self, id: &str, payload: &serde_json::Value, claimed: bool) -> Result<()> {
+        let payload_json = serde_json::to_string(payload).context("failed to serialize work unit payload")?;
+        let payload_b64 = base64::engine::general_purpose::STANDARD.encode(payload_json.as_bytes());
+        let sql = format!(
+            "INSERT INTO world_lab_work_units (id, payload_b64, claimed) VALUES ('{}', '{}', '{}')",
+            escape_sql_literal(id),
+            payload_b64,
+            if claimed { "true" } else { "false" },
+        );
+        self.client.simple_query(&sql).await.context("failed to insert work unit")?;
+        Ok(())
+    }
+
+    /// 既存ワークユニットの`claimed`フラグを更新する。
+    pub async fn update_work_unit_claimed(&self, id: &str, claimed: bool) -> Result<()> {
+        let sql = format!(
+            "UPDATE world_lab_work_units SET claimed = '{}' WHERE id = '{}'",
+            if claimed { "true" } else { "false" },
+            escape_sql_literal(id),
+        );
+        self.client.simple_query(&sql).await.context("failed to update work unit claimed flag")?;
+        Ok(())
+    }
+
+    /// 全ワークユニットを`(id, payload, claimed)`のVecとして読み出す
+    /// (コーディネータ起動時の`AppState`復元用)。挿入順は保証されない
+    /// ため、呼び出し側で`id`(`wu-NNNNNN`という単調増加の連番文字列)
+    /// によるソートを行うことを想定する。
+    pub async fn load_all_work_units(&self) -> Result<Vec<(String, serde_json::Value, bool)>> {
+        let rows = self
+            .client
+            .simple_query("SELECT id, payload_b64, claimed FROM world_lab_work_units")
+            .await
+            .context("failed to load work units")?;
+
+        let mut out = Vec::new();
+        for msg in rows {
+            if let tokio_postgres::SimpleQueryMessage::Row(row) = msg {
+                let id = row.get(0).unwrap_or_default().to_string();
+                let payload_b64 = row.get(1).unwrap_or_default();
+                let claimed_str = row.get(2).unwrap_or_default();
+
+                let payload_json_bytes = base64::engine::general_purpose::STANDARD
+                    .decode(payload_b64)
+                    .context("failed to base64-decode stored work unit payload")?;
+                let payload: serde_json::Value =
+                    serde_json::from_slice(&payload_json_bytes).context("failed to deserialize stored work unit payload")?;
+                let claimed = claimed_str == "true";
+
+                out.push((id, payload, claimed));
+            }
+        }
+        Ok(out)
+    }
+
     /// `WorkResultEnvelope`を1行INSERTし、`aruaru_commit`でコミットして
     /// commit_idを返す(ACID互換+Git版管理の両方を実際に活用する経路)。
     ///
