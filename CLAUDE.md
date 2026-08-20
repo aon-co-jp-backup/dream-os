@@ -1119,6 +1119,30 @@ throttled`例はコンピュートシェーダ1本(`vector_add`)のみで、実�
 
 ## HANDOFF(直近の作業ログ、上が最新)
 
+- **2026-08-20 `aruaru_persistence.rs`の誤ったdocコメントを修正
+  (「`aruaru-server`は既定で認証を要求しない開発用構成」は誤り)**:
+  前セッションの実機検証(`aruaru-db`側`aruaru-wire::auth`の実装確認)で、
+  `aruaru-wire`は常にSCRAM-SHA-256の`AruaruStartupHandler`
+  (`SASLScramAuthStartupHandler`)を使う設計であり、認証をスキップする
+  経路自体が存在しないことが判明していた。`ARUARU_USERS`環境変数が
+  未設定でも「認証不要」にはならず、`AruaruAuthSource::from_env`が
+  ユーザーストアを空のまま構築するため「登録ユーザー0件で全SCRAMログイン
+  拒否」になる(`aruaru-db/crates/aruaru-wire/src/auth.rs`の
+  `from_env`/`get_password`で確認)。
+  1. `crates/dream-os-wire/src/aruaru_persistence.rs`のモジュールdoc・
+     `AruaruDbStore::connect`のdocコメント2箇所を、実際の挙動(常時
+     SCRAM-SHA-256認証、`ARUARU_USERS`で事前登録したユーザー名・
+     パスワードが接続に必須)へ書き換えた。
+  2. `grep -rn "認証を要求しない\|認証無し\|認証なし\|認証不要\|既定で認証"`
+     で本リポジトリ内(`.rs`/`.md`)を全件確認したが、他に同種の誤った
+     前提を書いている箇所は見つからなかった(今回修正した2箇所のみが
+     ヒット)。
+  3. **検証**: `cargo build --release -p dream-os-wire`成功(警告0件)。
+  - 次にすべきこと: 特に緊急の課題は無し。`AruaruDbStore`を実際に呼ぶ
+    側(World Laboratoryコーディネータ等)を実装する際は、接続先
+    `aruaru-server`起動時の`ARUARU_USERS`設定と一致する`user`/
+    `password`を`conn_str`に渡す必要がある点を忘れないこと。
+
 - **2026-08-12 `sbm_ising`が解ける具体的な組合せ最適化問題を新規実装
   (`crates/dream-os-kernel/src/task_scheduler.rs`)——`sbm.rs`自身の
   モジュールdoc・過去複数のHANDOFFで繰り返し「次にすべきこと」として

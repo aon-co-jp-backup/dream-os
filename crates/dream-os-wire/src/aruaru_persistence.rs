@@ -9,9 +9,22 @@
 //! と記録していた永続化部分を、`aruaru-db`(ACID互換+Git-on-SQLの
 //! バージョン管理、`aruaru-server`が話すPostgreSQL wireプロトコル)へ
 //! 実際に接続する形で実装する。`tokio-postgres`クライアントで
-//! `aruaru-server`(pgwire、既定で認証無し・開発用途)へ接続し、
-//! `WorkResultEnvelope`をテーブルへINSERTした上で`aruaru_commit(...)`を
-//! 呼び、コミットIDを持つバージョン管理された結果として永続化する。
+//! `aruaru-server`(pgwire)へ接続し、`WorkResultEnvelope`をテーブルへ
+//! INSERTした上で`aruaru_commit(...)`を呼び、コミットIDを持つバージョン
+//! 管理された結果として永続化する。
+//!
+//! **認証について(2026-08-20訂正、`aruaru-db`側`aruaru-wire::auth`の
+//! 実装を確認の上で修正)**: `aruaru-server`は「既定で認証を要求しない
+//! 開発用構成」ではない——`aruaru-wire`は常に`AruaruStartupHandler`
+//! (SCRAM-SHA-256の`SASLScramAuthStartupHandler`)をスタートアップ
+//! ハンドラとして使う設計であり、認証をスキップする経路自体が存在しない。
+//! ユーザーストアは環境変数`ARUARU_USERS`("user1:pass1,user2:pass2")
+//! から`AruaruAuthSource::from_env`が読み込む方式で、この環境変数が
+//! 未設定の場合は「認証不要になる」のではなく「登録ユーザー0件のため
+//! 全てのSCRAMログインが失敗する」(`aruaru-db/crates/aruaru-wire/src/
+//! auth.rs`参照)。したがって`AruaruDbStore::connect`を使う際は、
+//! 接続先の`aruaru-server`起動時に`ARUARU_USERS`で登録したユーザー名・
+//! パスワードを`conn_str`の`user=`/`password=`に指定する必要がある。
 
 use anyhow::{Context, Result};
 use base64::Engine;
@@ -25,9 +38,11 @@ pub struct AruaruDbStore {
 }
 
 impl AruaruDbStore {
-    /// `conn_str`例: `"host=127.0.0.1 port=15432 user=dreamos dbname=aruaru"`
-    /// (`aruaru-server`は既定で認証を要求しない開発用構成のため、
-    /// `user`/`dbname`は任意の値で構わない)。
+    /// `conn_str`例: `"host=127.0.0.1 port=15432 user=dreamos password=<ARUARU_USERSで
+    /// 登録した平文パスワード> dbname=aruaru"`(`dbname`は`aruaru-server`側で
+    /// 検証されないため任意の値で構わないが、`user`/`password`は接続先
+    /// `aruaru-server`起動時の`ARUARU_USERS`環境変数に登録済みの組み合わせで
+    /// なければSCRAM-SHA-256認証で拒否される。上記モジュールdoc参照)。
     pub async fn connect(conn_str: &str) -> Result<Self> {
         let (client, connection) = tokio_postgres::connect(conn_str, NoTls).await.context("failed to connect to aruaru-server (pgwire)")?;
         // pgwireクライアントの慣例: 接続処理を別タスクで駆動し続ける必要がある。
