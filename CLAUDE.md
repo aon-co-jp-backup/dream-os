@@ -1733,3 +1733,20 @@ Other languages: [English](CLAUDE-English.md) · [Deutsch](CLAUDE-German.md) ·
 [Русский](CLAUDE-Russian.md) · [Українська](CLAUDE-Ukrainian.md) ·
 [עברית](CLAUDE-Hebrew.md) · [فارسی](CLAUDE-Persian.md) ·
 [العربية](CLAUDE-Arabic.md)
+
+## HANDOFF追記(2026-09-03) GPU 実行系は open-cuda に委譲する(正本: open-cuda/OmniGPU-Design.md §11・§12)
+
+エコシステム横断の GPU 移植性設計見直し(ユーザー指示、5 リポジトリ対象)。
+**設計の正本は `open-cuda/OmniGPU-Design.md` §11・§12**。
+
+### dream-os への波及方針(§12.3)
+- **dream-os 固有の GPU 移植性コードは追加しない**。open-cuda の
+  `GpuDevice` trait + SPIR-V(唯一の実行時 GPU IR)+ 能力交渉を
+  **そのまま継承**する。
+- dream-os の責務は **OS レベルの GPU 割り当て**(どのプロセスにどれだけ
+  GPU 時間/メモリを配るか)のみ。実行経路は open-cuda へ委譲。
+- 既存の SBM(`sbm_ising`)・`sha256d_mine` カーネルは既に SPIR-V 経由で
+  この原則に合致。東芝 SBM 第3世代("edge of chaos")は SPIR-V カーネルの
+  改良として取り込める(実行系の変更不要)。
+
+今回はコード未着手。CLAUDE.md への方針明記のみ。
