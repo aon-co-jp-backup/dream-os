@@ -1750,3 +1750,29 @@ Other languages: [English](CLAUDE-English.md) · [Deutsch](CLAUDE-German.md) ·
   改良として取り込める(実行系の変更不要)。
 
 今回はコード未着手。CLAUDE.md への方針明記のみ。
+
+### 2026-09-03(続き)世界中の言語で再調査 → 委譲方針は不変
+
+EN/JA/ZH + GitHub 中心で再調査(正本 `open-cuda/OmniGPU-Design.md`
+§11.6)。dream-os への影響がある更新点:
+- `EmbarkStudios/rust-gpu` は 2025-10-31 アーカイブ。dream-os は
+  `rust-gpu` に依存していない(SBM/mining カーネルは open-cuda 経由の
+  SPIR-V)ため影響なし。open-cuda が将来 CubeCL/naga を検討しても
+  dream-os は `GpuDevice` trait を継承するだけで追随不要。
+- llama.cpp が 2026-04 に**バックエンド非依存のテンソル並列**を導入
+  (複数 GPU へ演算単位で分割、ベンダーロックイン無し)。→ dream-os が
+  OS レベルで複数 GPU を複数プロセスへ配分する設計を将来書く際、
+  「GPU をまたぐ実行の分割は open-cuda 側(SPIR-V 単一カーネル + デバイス
+  列挙)、どのプロセスにどの GPU を割り当てるかは dream-os 側」という
+  責務境界がそのまま成立する。
+- 結論: 委譲方針(dream-os は OS レベル割り当てのみ、実行系は open-cuda)は
+  1 行も変更なし。
+
+**English**: World-language + GitHub re-research (source of truth:
+`open-cuda/OmniGPU-Design.md` §11.6). `EmbarkStudios/rust-gpu` was
+archived 2025-10-31 — no impact (dream-os depends on open-cuda's SPIR-V
+path, not rust-gpu). llama.cpp added backend-agnostic tensor parallelism
+(2026-04); the responsibility split holds — cross-GPU execution split
+lives in open-cuda (single SPIR-V kernel + device enumeration), which
+process gets which GPU is dream-os's OS-level job. Delegation policy
+unchanged.
