@@ -123,3 +123,26 @@ Other languages: [English](PORTING-English.md) · [Deutsch](PORTING-German.md) �
 [Русский](PORTING-Russian.md) · [Українська](PORTING-Ukrainian.md) ·
 [עברית](PORTING-Hebrew.md) · [فارسی](PORTING-Persian.md) ·
 [العربية](PORTING-Arabic.md)
+
+## Windows への導入と、Windows / Ubuntu での互換試験 (2026-10-14) / Windows install and compatibility tests
+
+**導入**: `installer\windows\install.ps1`(ユーザー単位・管理者権限不要。`-Uninstall` で削除)。`%LOCALAPPDATA%\dream-os\bin` に、状態確認・RAID6・DXBC→SPIR-V のデモと `dream-os` コマンドを置きます。
+`dream-os status|raid|dx` は Windows 上のネイティブ実行、`dream-os linux` は WSL2 の Ubuntu を開き、`dream-os both` は両方を**同時**に動かします(Windows はそのまま使えます)。
+**正直な開示**: dream-os は、まだ単独で起動できる OS ではありません(Linux x TRON のハイブリッドカーネルは構想段階)。「Windows と切り替えて使う」「dream-os だけで起動する」ことはできず、ここでの「同時使用」は、Windows と WSL2(Linux)の並行実行です。
+ビルドには、シェーダーコンパイラ `glslc`(Vulkan SDK / Ubuntu は `apt install glslc`)が要ります。`open-cuda` の `flash_attention.spv` は git 管理外なので、`glslc --target-env=vulkan1.1 flash_attention.comp -o flash_attention.spv` で作ります。
+
+**試験結果**(Windows 11 + NVIDIA GT 730 / WSL2 Ubuntu + llvmpipe):
+| 対象 | Windows | Ubuntu(WSL2) |
+|---|---|---|
+| dream-os(kernel・wire) | 全件成功 | 18 件成功 |
+| dream-os-raid-bridge | 成功(GPU でパリティ計算、自己修復) | **未試験**(Ubuntu に `dxc` の配布パッケージが無いため) |
+| `dream_os_status`(GPU・DXBC→SPIR-V・Flash Attention) | OK(GT 730) | OK(llvmpipe) |
+| open-cuda | 176 件成功 | 全件成功 |
+| open-directx | 136 件成功 | 136 件成功 |
+| open-cpu | 40 件成功 | 40 件成功 |
+| aruaru-llm | 168 件成功 | 168 件成功 |
+| aruaru-IME | 177 件成功 | CI で ibus / fcitx5 / インストールの通し試験に成功 |
+
+見つけて直した不具合: `opencuda-blas` の `sgemm_auto_dispatch...nvidia` 試験が、NVIDIA 以外の Vulkan デバイス(WSL の llvmpipe)で失敗していた(NVIDIA でなければスキップするよう修正、open-cuda 側)。
+
+English summary: install with `installer\windows\install.ps1` (per-user). `dream-os status|raid|dx` run natively on Windows; `dream-os linux` opens WSL2 Ubuntu; `dream-os both` runs both at once. dream-os is not yet a bootable standalone OS, so "switching" and "standalone boot" are not possible; concurrency means Windows and WSL2 side by side. Tests pass on Windows (GT 730) and Ubuntu/WSL2 (llvmpipe) except `dream-os-raid-bridge` on Ubuntu (no packaged `dxc`), untested. Fixed a GPU-vendor assumption in an open-cuda test (skips on non-NVIDIA devices).
