@@ -24,6 +24,34 @@ pub const SAMPLE: &str = "あいうえおかきくけこさしすせそたちつ
 日本語漢字変換今日様用要陽洋葉容鬼滅刃経心般若波羅蜜多時観自在菩薩深行照見五蘊皆空度一切苦厄舎利子色不異空即是受想識亦復如東京大阪名古屋札幌福岡仙台広島神戸京都\
 、。・「」『』（）［］｛｝〜～！？：；＋－＝／＼￥＠＃＄％＆＊＾＿｜ＡＢＣａｂｃ０１２３ABCabc0123";
 
+/// 文字列を、同梱フォントで 8 ビット濃淡(0=白地・255=文字)の画像にする。戻り値は (幅, 高さ, 画素)。
+pub fn render_text(text: &str, px: f32) -> (usize, usize, Vec<u8>) {
+    use ab_glyph::{point, Font, FontRef, ScaleFont};
+    let font = FontRef::try_from_slice(IPA_GOTHIC).expect("bundled font");
+    let scaled = font.as_scaled(px);
+    let pad = 4usize;
+    let width: f32 = text.chars().map(|c| scaled.h_advance(font.glyph_id(c))).sum();
+    let (w, h) = (width.ceil() as usize + pad * 2, (scaled.ascent() - scaled.descent()).ceil() as usize + pad * 2);
+    let mut img = vec![0u8; w * h];
+    let mut x = pad as f32;
+    for c in text.chars() {
+        let id = font.glyph_id(c);
+        let glyph = id.with_scale_and_position(px, point(x, pad as f32 + scaled.ascent()));
+        x += scaled.h_advance(id);
+        if let Some(o) = font.outline_glyph(glyph) {
+            let b = o.px_bounds();
+            o.draw(|gx, gy, cov| {
+                let (ix, iy) = (b.min.x as i32 + gx as i32, b.min.y as i32 + gy as i32);
+                if ix >= 0 && iy >= 0 && (ix as usize) < w && (iy as usize) < h {
+                    let p = &mut img[iy as usize * w + ix as usize];
+                    *p = (*p).max((cov * 255.0) as u8);
+                }
+            });
+        }
+    }
+    (w, h, img)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -43,6 +71,19 @@ mod tests {
     fn missing_reports_a_character_the_font_lacks() {
         assert_eq!(missing("あ😀"), vec!['😀']);
         assert!(has_glyph('漢') && !has_glyph('😀'));
+    }
+
+    #[test]
+    fn text_is_rasterized_into_visible_ink() {
+        let (w, h, img) = render_text("今日は、様です。", 32.0);
+        assert!(w > 200 && h > 30);
+        let ink = img.iter().filter(|&&p| p > 128).count();
+        assert!(ink > 600, "文字の画素が少なすぎる: {ink}");
+        // 空白だけなら、何も描かれない
+        let (_, _, blank) = render_text("   ", 32.0);
+        assert!(blank.iter().all(|&p| p == 0));
+        // 漢字と、ひらがなは、違う絵になる
+        assert_ne!(render_text("日", 32.0).2, render_text("あ", 32.0).2);
     }
 
     #[test]

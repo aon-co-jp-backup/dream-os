@@ -8,3 +8,7 @@ description = "dream-os に同梱する、オープンソースの日本語フ�
 
 [dependencies]
 ttf-parser = "0.25"
+ab_glyph = "0.2"
+
+[dev-dependencies]
+png = "0.17"
