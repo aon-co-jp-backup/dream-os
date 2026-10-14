@@ -27,6 +27,10 @@ foreach ($e in 'dream_os_status', 'directx_bridge_benchmark', 'dispatch_throttle
     Copy-Item (Join-Path $root "target\release\examples\$e.exe") $bin -Force
 }
 Copy-Item (Join-Path $root 'target\release\examples\raid6_bridge_benchmark.exe') $bin -Force
+Copy-Item (Join-Path $root 'target\release\examples\font_check.exe') $bin -Force
+$fonts = Join-Path $dest 'fonts'
+& (Join-Path $bin 'font_check.exe') $fonts | Out-Null
+Copy-Item (Join-Path $root 'crates\dream-os-fonts\fonts\IPA-LICENSE.txt') $fonts -Force
 Copy-Item (Join-Path $PSScriptRoot 'dream-os.cmd') $bin -Force
 $p = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (($p -split ';') -notcontains $bin) { [Environment]::SetEnvironmentVariable('Path', "$p;$bin", 'User') }
