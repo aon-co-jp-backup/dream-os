@@ -135,7 +135,7 @@ Other languages: [English](PORTING-English.md) · [Deutsch](PORTING-German.md) �
 | 対象 | Windows | Ubuntu(WSL2) |
 |---|---|---|
 | dream-os(kernel・wire) | 全件成功 | 18 件成功 |
-| dream-os-raid-bridge | 成功(GPU でパリティ計算、自己修復) | **未試験**(Ubuntu に `dxc` の配布パッケージが無いため) |
+| dream-os-raid-bridge | 成功(GPU でパリティ計算、自己修復) | 成功(2026-10-16。CPU フォールバックで書き込み・読み出し・自己修復。全体で 25 件成功) |
 | `dream_os_status`(GPU・DXBC→SPIR-V・Flash Attention) | OK(GT 730) | OK(llvmpipe) |
 | open-cuda | 176 件成功 | 全件成功 |
 | open-directx | 136 件成功 | 136 件成功 |
@@ -153,3 +153,7 @@ Windows のインストーラーは `%LOCALAPPDATA%\dream-os\fonts\` に書き�
 **試験**: 単体試験 4 件(見本の字形が全部ある・TTF として正しい・無い文字を報告する・ライセンス同梱)は Windows と Ubuntu で成功。`dream-os fonts` も両方で見本 296 文字すべてに字形あり。**描画も確認済み**(`render_text` と `examples/render_png`、`crates/dream-os-fonts/sample.png`): 「今日は、様です。ひらがな カタカナ 漢字変換 般若心経 ABC 123」を実際に絵にして目視で確認し、Windows と Ubuntu で出力 PNG がバイト単位で同一でした(単体試験は 5 件)。
 なお、前に直した文字化けの原因は、フォントの不足ではなく、`.cmd` と PowerShell スクリプトの文字コード(UTF-8 の日本語を、Windows が別の文字コードで読んでいた)でした。フォント同梱は、dream-os 自身が日本語を表示するための別の備えです。
 English: bundled the open-source IPAGothic font (IPA Font License v1.0) in `dream-os-fonts`, written to `%LOCALAPPDATA%\dream-os\fonts` by the installer; `dream-os fonts` checks glyph coverage (296 sample chars, none missing). 4 unit tests pass on Windows and Ubuntu; rasterization verified (identical PNG on Windows and Ubuntu). The earlier mojibake was a script-encoding problem, not a missing font.
+
+### Ubuntu での dream-os-raid-bridge (2026-10-16) / raid-bridge on Ubuntu
+`dxc`(Microsoft の DirectXShaderCompiler v1.9.2609 の公式配布 `linux_dxc_*.tar.gz`、約 13MB。利用者の許可を得て取得、`~/dxc` に展開、PATH と `LD_LIBRARY_PATH` に追加)でビルドは通るが、`zfs_accel_hlsl` の既定の `gpu` 機能は Windows 専用(D3D12/DirectML)で Linux ではコンパイルできなかった。`dream-os-raid-bridge/Cargo.toml` を、Windows は従来どおり `gpu`、Linux・macOS は `gpu` を外して `vulkan` 機能(Vulkan Compute)を使う指定に分けた。結果: Ubuntu で dream-os 全体の試験 25 件成功、デモは CPU フォールバックで書き込み・読み出し・1 台壊しての自己修復が一致(WSL2 の llvmpipe では GPU アクセラレーションは選ばれない)。
+English: with the official `dxc` for Linux (downloaded with permission), the build passes, but `zfs_accel_hlsl`'s default `gpu` feature is Windows-only. `dream-os-raid-bridge` now uses `gpu` on Windows and `vulkan` (no `gpu`) elsewhere. On Ubuntu all 25 dream-os tests pass and the demo round-trips and self-heals on the CPU fallback.

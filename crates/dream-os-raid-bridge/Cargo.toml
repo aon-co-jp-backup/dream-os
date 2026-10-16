@@ -16,9 +16,17 @@ CPU/GPUアクセラレータ切り替えを、open-raid-z側の実装を
 # 既存パターン(directx_bridge.rs等)と同じく、他リポジトリの実装を
 # path依存で直接再利用する(コード複製・再実装は行わない)。
 open_raid_z_core = { path = "../../../open-raid-z/open_runo_zfs_source/open_raid_z_core", default-features = false }
-zfs_accel_hlsl = { path = "../../../open-raid-z/open_runo_zfs_source/zfs_accel_hlsl" }
 thiserror = "1.0"
 tracing = "0.1"
 
 [dev-dependencies]
 tempfile = "3"
+
+# Windows: D3D12/DirectML(既定の gpu 機能)。Linux・macOS: D3D12 は無いので gpu を外し、Vulkan Compute で GPU を使う
+# (GPU が無ければ CPU のフォールバック)。
+[target.'cfg(windows)'.dependencies]
+zfs_accel_hlsl = { path = "../../../open-raid-z/open_runo_zfs_source/zfs_accel_hlsl" }
+
+[target.'cfg(not(windows))'.dependencies]
+zfs_accel_hlsl = { path = "../../../open-raid-z/open_runo_zfs_source/zfs_accel_hlsl", default-features = false, features = ["vulkan"] }
+
