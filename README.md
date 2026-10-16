@@ -156,3 +156,7 @@ SDK・開発者ライセンスは一切ありません。「将来ライセン�
 ## License
 
 未定(構想段階のため)。
+
+---
+
+作者 / Author: 石塚正浩（MASAHIRO ISHIZUKA） (https://github.com/aon-co-jp)
