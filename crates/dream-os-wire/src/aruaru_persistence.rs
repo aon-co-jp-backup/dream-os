@@ -130,7 +130,7 @@ impl AruaruDbStore {
                     .decode(payload_b64)
                     .context("failed to base64-decode stored work unit payload")?;
                 let payload: serde_json::Value =
-                    serde_json::from_slice(&payload_json_bytes).context("failed to deserialize stored work unit payload")?;
+                    sonic_rs::from_slice(&payload_json_bytes).context("failed to deserialize stored work unit payload")?;
                 let claimed = claimed_str == "true";
 
                 out.push((id, payload, claimed));

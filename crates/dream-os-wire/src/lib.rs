@@ -158,7 +158,7 @@ impl CoordinatorChannel {
 
     pub fn receive(&mut self, frame: &[u8]) -> Result<WorkResultEnvelope> {
         let json = self.inner.decrypt(frame).context("failed to decrypt/verify work result frame")?;
-        serde_json::from_slice(&json).context("failed to deserialize WorkResultEnvelope")
+        sonic_rs::from_slice(&json).context("failed to deserialize WorkResultEnvelope")
     }
 }
 

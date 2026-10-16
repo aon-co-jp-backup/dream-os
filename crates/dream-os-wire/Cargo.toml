@@ -8,6 +8,7 @@ repository.workspace = true
 description = "DreamOS/World Laboratory向け通信・永続化層: open-web-server-wire(4層防御通信+4重伝送路)・open-web-server-ledger(4重DB永続化)を再利用したワーカー↔コーディネータ間のセキュア結果送信"
 
 [dependencies]
+sonic-rs = "0.3"
 open-web-server-wire = { path = "../../../open-web-server/crates/open-web-server-wire" }
 open-web-server-core = { path = "../../../open-web-server/crates/open-web-server-core" }
 anyhow = "1"
