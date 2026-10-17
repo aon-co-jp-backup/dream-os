@@ -1,0 +1,9 @@
+{
+  "nameShort": "DreamOS Code",
+  "nameLong": "DreamOS Code (Code-OSS based)",
+  "dataFolderName": ".dream-os-code",
+  "extensionsGallery": {
+    "serviceUrl": "https://open-vsx.org/vscode/gallery",
+    "itemUrl": "https://open-vsx.org/vscode/item"
+  }
+}
