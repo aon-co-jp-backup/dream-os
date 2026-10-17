@@ -135,7 +135,7 @@ SDK・開発者ライセンスは一切ありません。「将来ライセン�
 ```
 dream-os-disk plan     --disk 500G --os windows=200G,linux=100G,dreamos --shared 20G --swap 8G
 dream-os-disk format   --image disk.img --size 8192M --os windows=2048M,linux     # 試験用イメージ
-dream-os-disk format   --device \.\PhysicalDrive2 --size-bytes N --confirm "ERASE \.\PhysicalDrive2 N" --os ...   # 実ディスク(全消去)
+dream-os-disk format   --device \\.\PhysicalDrive2 --size-bytes N --confirm "ERASE \\.\PhysicalDrive2 N" --os ...   # 実ディスク(全消去)
 dream-os-disk make-iso --payload DIR --out dreamos.iso --os windows,linux,dreamos --bootloader BOOTX64.EFI
 .\installer\windows\make-usb.ps1 -List ; -IsoPath dreamos.iso -DiskNumber 2 -Execute -ConfirmText "ERASE 2"
 ```
