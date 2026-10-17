@@ -119,6 +119,13 @@ details).
   [world-lab/docs/world-laboratory-design.md](https://github.com/aon-co-jp/world-lab/blob/main/docs/world-laboratory-design.md)
   for the full design.
 
+## Disk formatting, multi-boot and installer media (2026-10-18, `dream-os-disk`)
+
+`crates/dream-os-disk` (zero dependencies) adds: **HDD formatting** (GPT + protective MBR, FAT32 for the EFI System Partition and a shared partition; NTFS/ext4/swap partitions are created but left for the Windows/Linux installers to format); **Windows + Linux + DreamOS side by side** (layout planner, GRUB boot menu that chain-loads the Windows boot manager; "simultaneous running" = generated QEMU commands, `whpx` on Windows hosts, `kvm` on Linux); **USB/CD installer media** (`make-iso` builds a UEFI-bootable ISO9660 + Joliet + El Torito image that can be burned to CD/DVD *and* copied to a USB stick; `installer/windows/make-usb.ps1` selects only USB-bus, non-system disks, dry-run by default, and `-BurnCd` opens Windows' disc burner).
+
+Safety: `format --device` needs an exact `--confirm "ERASE <path> <bytes>"` and refuses `PhysicalDrive0` and mounted devices. Status: 15 unit tests pass; GPT checked with `sfdisk --verify`, FAT32 with `fsck.vfat` (clean) and `mtools`, ISO by mounting it on Windows (Japanese long names read correctly). **Not verified**: writing to a real USB stick, `format --device` on a real disk, burning a disc, UEFI boot on hardware. DreamOS itself is not a bootable OS yet, so the UEFI bootloader (e.g. GRUB) must be supplied with `--bootloader`; Windows/Linux themselves are installed by their own official installers (user-supplied ISOs).
+Other-language READMEs have not been updated yet.
+
 ## Place within the ecosystem
 
 Part of the `aon-co-jp` ecosystem, related in particular to (exact

@@ -1,0 +1,10 @@
+[package]
+name = "dream-os-disk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "DreamOS: HDDのフォーマット(GPT+FAT32)、Windows/Linux/DreamOSの同居(マルチブート)レイアウト、USB/CDインストーラー媒体(ISO9660+El Torito UEFI)の生成。外部依存ゼロ"
+
+[dependencies]

@@ -620,6 +620,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "dream-os-disk"
+version = "0.1.0"
+
+[[package]]
 name = "dream-os-fonts"
 version = "0.1.0"
 dependencies = [

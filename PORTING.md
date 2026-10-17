@@ -157,3 +157,11 @@ English: bundled the open-source IPAGothic font (IPA Font License v1.0) in `drea
 ### Ubuntu での dream-os-raid-bridge (2026-10-16) / raid-bridge on Ubuntu
 `dxc`(Microsoft の DirectXShaderCompiler v1.9.2609 の公式配布 `linux_dxc_*.tar.gz`、約 13MB。利用者の許可を得て取得、`~/dxc` に展開、PATH と `LD_LIBRARY_PATH` に追加)でビルドは通るが、`zfs_accel_hlsl` の既定の `gpu` 機能は Windows 専用(D3D12/DirectML)で Linux ではコンパイルできなかった。`dream-os-raid-bridge/Cargo.toml` を、Windows は従来どおり `gpu`、Linux・macOS は `gpu` を外して `vulkan` 機能(Vulkan Compute)を使う指定に分けた。結果: Ubuntu で dream-os 全体の試験 25 件成功、デモは CPU フォールバックで書き込み・読み出し・1 台壊しての自己修復が一致(WSL2 の llvmpipe では GPU アクセラレーションは選ばれない)。
 English: with the official `dxc` for Linux (downloaded with permission), the build passes, but `zfs_accel_hlsl`'s default `gpu` feature is Windows-only. `dream-os-raid-bridge` now uses `gpu` on Windows and `vulkan` (no `gpu`) elsewhere. On Ubuntu all 25 dream-os tests pass and the demo round-trips and self-heals on the CPU fallback.
+
+
+## ディスク・マルチブート・インストーラー媒体(2026-10-18、ユーザー指示)
+ユーザー指示「HDDのフォーマット機能とWindowsやLINUXも同時にインストールも同時起動も可能にし、Windowsから作れるUSBインストーラーをCDに焼いてもインストールできるように」を受け、`crates/dream-os-disk`を新設(詳細・使い方・試験結果は[`README.md`](README.md)同名節)。
+- 構成: `gpt.rs`(GPT/CRC/プロテクティブMBR)、`layout.rs`(Windows/Linux/DreamOS配置計算)、`fat32.rs`(FAT32+LFN書き込み)、`iso9660.rs`(ISO9660+Joliet+El Torito UEFI)、`bootcfg.rs`(GRUB・QEMU)、`media.rs`(高レベル操作)、`main.rs`(CLI)。`installer/windows/make-usb.ps1`はUSB複写とCD書き込み起動。
+- 設計判断: 「同時インストール」は、WindowsやLinuxの本体導入を代行せず(ライセンスと確実性のため)**領域の作成・ブートメニュー・共有領域まで**をDreamOSが担う。「同時起動」はマルチブート(GRUBメニュー)と、ホスト上のゲストとして動かすQEMUの2通り。NTFS/ext4は各OSのインストーラーがフォーマットする。実ディスクへの書き込みは完全一致の確認文字列つきで、PhysicalDrive0とマウント中は拒否。
+- 未確認(次回の再開点): 実USBメモリへの書き込み、`format --device`の実ディスク試験、光学ドライブでの書き込み、実機UEFI起動(ブートローダーGRUBは未同梱・`--bootloader`で渡す)、NTFS/ext4のmkfs連携、10言語版ドキュメントへの反映。
+- 検証環境の注意: WSL(Ubuntu)に`dosfstools`と`mtools`を追加導入した(FAT検証用)。8GiBの疎イメージを`/mnt/c`越しにddすると非常に遅いので、検証は小さいイメージを`/tmp`へコピーして行う。

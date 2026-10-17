@@ -124,6 +124,26 @@ SDK・開発者ライセンスは一切ありません。「将来ライセン�
   [world-lab/docs/world-laboratory-design.md](https://github.com/aon-co-jp/world-lab/blob/main/docs/world-laboratory-design.md)
   参照。
 
+## ディスクのフォーマット・マルチブート・インストーラー媒体(2026-10-18、`dream-os-disk`)
+
+`crates/dream-os-disk`(外部依存ゼロ)で、次を実装しました。
+
+- **HDDのフォーマット**: GPT(+プロテクティブMBR)の作成、EFIシステム領域と共有領域のFAT32フォーマット。NTFS/ext4/swapは領域だけ作り、中身のフォーマットはWindows/Linuxのインストーラーに任せます(そのほうが安全で確実なため)。
+- **Windows・Linux・DreamOSの同居**: 1台のディスクに3つを並べる配置計算(`plan`)、起動メニュー(GRUB。Windowsはブートマネージャへチェイン)の生成(`grub-cfg`)。**同時起動**はQEMU(Windowsは`whpx`、Linuxは`kvm`)の起動コマンド生成(`qemu`)で、片方をホスト、もう片方をゲストにします。
+- **USB/CDインストーラー**: `make-iso`が、UEFIブート可能なISO9660(Joliet=日本語の長い名前対応、El Torito)を作ります。**同じISOをCD/DVDに焼け、USBへも複写できます**。Windowsから使う`installer/windows/make-usb.ps1`は、USBメモリ(BusType=USBかつシステムディスクでない物だけ)を選んで複写、`-BurnCd`でWindows標準の書き込みツールを開きます。
+
+```
+dream-os-disk plan     --disk 500G --os windows=200G,linux=100G,dreamos --shared 20G --swap 8G
+dream-os-disk format   --image disk.img --size 8192M --os windows=2048M,linux     # 試験用イメージ
+dream-os-disk format   --device \.\PhysicalDrive2 --size-bytes N --confirm "ERASE \.\PhysicalDrive2 N" --os ...   # 実ディスク(全消去)
+dream-os-disk make-iso --payload DIR --out dreamos.iso --os windows,linux,dreamos --bootloader BOOTX64.EFI
+.\installer\windows\make-usb.ps1 -List ; -IsoPath dreamos.iso -DiskNumber 2 -Execute -ConfirmText "ERASE 2"
+```
+
+**安全策**: 実ディスクの`format`は`--confirm "ERASE <パス> <バイト数>"`が完全一致しないと動かず、`PhysicalDrive0`とマウント中のデバイスは拒否します。`make-usb.ps1`は既定が「確認だけ」で、実行には`-Execute`と`-ConfirmText "ERASE <番号>"`が要り、内蔵ディスクは候補に出ません。
+
+**正直な現状**: 単体試験15件成功。GPTはLinuxの`sfdisk --verify`、FAT32は`fsck.vfat`(エラー無し)と`mtools`、ISOはWindowsの`Mount-DiskImage`(日本語の長いファイル名を含め読めた)で、それぞれ第三者のツールにより確認しました。**未確認**: (1)実際のUSBメモリへの書き込み(手元に無く、拒否動作のみ確認)、(2)実ディスクの`format --device`、(3)光学ドライブへの書き込み、(4)実機のUEFI起動 — DreamOS自身はまだ起動できるOSではないため、**UEFIブートローダー(GRUBなど)は利用者が`--bootloader`で渡す必要があり**、同梱していません。(5)WindowsやLinuxの本体の導入は、それぞれの公式インストーラー(ISOは利用者が用意)で行います。DreamOSがWindowsの導入を代行することはしません。
+
 ## エコシステム内での位置づけ
 
 このプロジェクトは`aon-co-jp`エコシステムの一部で、特に以下と関連します
