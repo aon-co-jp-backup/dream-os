@@ -77,7 +77,9 @@ if ($d.BusType -ne 'USB' -or $d.IsSystem -or $d.IsBoot) { throw "対象ディス
 
 Write-Host "パーティションを作成しています..."
 Clear-Disk -Number $DiskNumber -RemoveData -RemoveOEM -Confirm:$false
-Initialize-Disk -Number $DiskNumber -PartitionStyle GPT
+$style = (Get-Disk -Number $DiskNumber).PartitionStyle
+if ($style -eq 'RAW') { Initialize-Disk -Number $DiskNumber -PartitionStyle GPT }
+elseif ($style -ne 'GPT') { Set-Disk -Number $DiskNumber -PartitionStyle GPT }
 # FAT32 の書式設定は Windows では 32GB までのため、USBが大きくても先頭 32GB のみ使う(UEFIはFAT32を読む)
 $size = [math]::Min($d.Size - 8MB, 32GB - 1MB)
 $part = New-Partition -DiskNumber $DiskNumber -Size $size -AssignDriveLetter

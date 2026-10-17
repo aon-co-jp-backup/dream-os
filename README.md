@@ -54,6 +54,8 @@
 [world-lab/docs/world-laboratory-design.md](https://github.com/aon-co-jp/world-lab/blob/main/docs/world-laboratory-design.md)で
 目的・スコープ・エコシステム内での位置づけ・実装状況を文書化しています。
 
+> 📌 **お引越し・再開メモ(2026-10-18)**: `dream-os-disk`の実USB書き込み試験が途中です。再開手順・未確認項目・注意点は[`PORTING.md`](PORTING.md)末尾「お引越し・再開メモ」(日英)を参照。
+
 ## 目的
 
 **世の中に存在するほとんどのOSを統合・融合する、LinuxとTRON OSの

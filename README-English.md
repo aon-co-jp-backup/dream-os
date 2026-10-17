@@ -39,6 +39,8 @@ primary language for this ecosystem), [`CLAUDE.md`](CLAUDE.md),
 documents the purpose, scope, place within the ecosystem, and current
 implementation status of this project.
 
+> 📌 **Hand-off (2026-10-18)**: the real-USB write test of `dream-os-disk` is unfinished. Resume steps, unverified items and cautions are at the end of [`PORTING.md`](PORTING.md) ("Hand-off", Japanese and English).
+
 ## Purpose
 
 A **hybrid kernel combining Linux and TRON OS**, aiming to unify most of

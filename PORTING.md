@@ -165,3 +165,29 @@ English: with the official `dxc` for Linux (downloaded with permission), the bui
 - 設計判断: 「同時インストール」は、WindowsやLinuxの本体導入を代行せず(ライセンスと確実性のため)**領域の作成・ブートメニュー・共有領域まで**をDreamOSが担う。「同時起動」はマルチブート(GRUBメニュー)と、ホスト上のゲストとして動かすQEMUの2通り。NTFS/ext4は各OSのインストーラーがフォーマットする。実ディスクへの書き込みは完全一致の確認文字列つきで、PhysicalDrive0とマウント中は拒否。
 - 未確認(次回の再開点): 実USBメモリへの書き込み、`format --device`の実ディスク試験、光学ドライブでの書き込み、実機UEFI起動(ブートローダーGRUBは未同梱・`--bootloader`で渡す)、NTFS/ext4のmkfs連携、10言語版ドキュメントへの反映。
 - 検証環境の注意: WSL(Ubuntu)に`dosfstools`と`mtools`を追加導入した(FAT検証用)。8GiBの疎イメージを`/mnt/c`越しにddすると非常に遅いので、検証は小さいイメージを`/tmp`へコピーして行う。
+
+
+## お引越し・再開メモ: dream-os-disk(2026-10-18、Windows再起動前) / Hand-off: dream-os-disk (2026-10-18, before Windows restart)
+
+**日本語**
+- **到達点**: `crates/dream-os-disk`(GPT・FAT32・ISO9660+Joliet+El Torito UEFI・GRUB/QEMU設定・CLI)と`installer/windows/make-usb.ps1`をpush済み(`d5ab8d2`)。単体試験15件成功。第三者ツールで構造を確認済み(`sfdisk --verify`、`fsck.vfat`=エラー無し、Windowsの`Mount-DiskImage`で日本語の長い名前を読めた)。
+- **未コミットだった修正**: `make-usb.ps1`の「MBRのUSBでGPT初期化が失敗する」不具合の修正(`Clear-Disk`後に`PartitionStyle`を見て`Initialize-Disk`/`Set-Disk`を使い分け)。この`HANDOFF`と同じコミットに含めた。
+- **中断した作業(最優先)**: 実USBメモリ(ディスク3「USB DISK 3.2」58.2GB)への書き込み。この環境からはUACが「ユーザーによりキャンセル」になり昇格できなかったため、**ユーザーが管理者PowerShellで実行する**手順にした。再起動でディスク番号が変わることがあるので、**必ず先に`-List`で番号を確認**すること。
+  ```
+  Set-ExecutionPolicy -Scope Process Bypass -Force
+  F:/dream-os/installer/windows/make-usb.ps1 -List
+  F:/dream-os/installer/windows/make-usb.ps1 -IsoPath <dreamos.iso> -DiskNumber <番号> -Execute -ConfirmText "ERASE <番号>"
+  ```
+- **`dreamos.iso`の再生成**(前回のISOは一時フォルダにあり、消えている可能性がある): WSL(Ubuntu、`grub-efi-amd64-bin`導入済み)で`grub-mkstandalone -O x86_64-efi -o BOOTX64.EFI --modules="part_gpt part_msdos fat ext2 chain search search_fs_file configfile normal echo ls loadenv efifwsetup efi_gop all_video" "boot/grub/grub.cfg=embed.cfg"`(`embed.cfg`は`search --no-floppy --file --set=root /EFI/BOOT/grub.cfg`と`configfile /EFI/BOOT/grub.cfg`の2行)。その後`cargo run -p dream-os-disk --release -- make-iso --payload <DIR> --out dreamos.iso --os windows,linux,dreamos --bootloader BOOTX64.EFI`。モジュール名の注意: `fwsetup`ではなく`efifwsetup`、`efi_uga`はx86_64-efiに無い。
+- **未確認(実機)**: USBへの実書き込みとファイル照合、USBからのUEFI起動(GRUBメニュー→Windowsチェイン)、`format --device`の実ディスク試験、光学ドライブへの書き込み(`make-usb.ps1 -BurnCd`)、NTFS/ext4のmkfs連携、他言語READMEへの反映。
+- **注意**: ① `F:/dream-os/vsc/`は別セッションの未追跡作業。触らない・コミットしない。② 8GiBの疎イメージを`/mnt/c`越しにddすると非常に遅いので、検証は小さいイメージを`/tmp`へ。③ WSLに`dosfstools`・`mtools`・`grub-efi-amd64-bin`を追加導入済み。④ `.ps1`はUTF-8 BOM+CRLFを保つ(`.gitattributes`)。
+- **別PCへの引っ越し**: `git clone https://github.com/aon-co-jp/dream-os`、Rust導入、`cargo test -p dream-os-disk`(依存ゼロなので他リポジトリ不要。ただしワークスペース全体のビルドには`../open-web-server`等の兄弟リポジトリが要る)。WindowsのISO/USB作成は管理者権限と`Get-Disk`が使えるWindowsが必要。
+
+**English**
+- **State**: `crates/dream-os-disk` (GPT, FAT32, ISO9660+Joliet+El Torito UEFI, GRUB/QEMU config, CLI) and `installer/windows/make-usb.ps1` are pushed (`d5ab8d2`); 15 unit tests pass; structures verified by third-party tools (`sfdisk --verify`, `fsck.vfat` clean, Windows `Mount-DiskImage` reads the Japanese long names).
+- **Fix that was uncommitted**: `make-usb.ps1` failed to GPT-initialise an MBR USB stick; it now checks `PartitionStyle` after `Clear-Disk` and uses `Initialize-Disk` or `Set-Disk`. Committed together with this note.
+- **Interrupted (top priority)**: writing to a real USB stick (disk 3, "USB DISK 3.2", 58.2 GB). UAC elevation from this environment was cancelled three times, so **the user runs it from an elevated PowerShell**. Disk numbers can change after a reboot, so **run `-List` first** (commands above).
+- **Regenerating `dreamos.iso`** (the earlier ISO was in a temp folder): build `BOOTX64.EFI` with `grub-mkstandalone` in WSL (modules and embed config above; use `efifwsetup`, not `fwsetup`; `efi_uga` does not exist for x86_64-efi), then `dream-os-disk make-iso --payload <DIR> --out dreamos.iso --os windows,linux,dreamos --bootloader BOOTX64.EFI`.
+- **Not verified on hardware**: the actual USB write and file comparison, UEFI boot from the stick (GRUB menu → Windows chain-load), `format --device` on a real disk, disc burning (`-BurnCd`), NTFS/ext4 mkfs integration, other-language READMEs.
+- **Cautions**: `F:/dream-os/vsc/` is another session's untracked work — do not touch or commit it. dd of an 8 GiB sparse image over `/mnt/c` is very slow; copy small images to `/tmp`. WSL now has `dosfstools`, `mtools`, `grub-efi-amd64-bin`. Keep `.ps1` as UTF-8 BOM + CRLF.
+- **Moving to another PC**: clone the repo, install Rust, run `cargo test -p dream-os-disk` (zero dependencies; building the whole workspace also needs sibling repos such as `../open-web-server`). Making the USB needs Windows with admin rights and `Get-Disk`.
